@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { calculerEcheance, calculerTotaux } from "@/lib/calculs";
+import { calculerEcheance, calculerTotaux, repartirAcompteHt } from "@/lib/calculs";
 import { reserverNumero } from "@/lib/numerotation";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
@@ -109,25 +109,25 @@ export async function creerFactureDepuisDevis(
     autoliquidation: devis.autoliquidation,
   });
 
-  const tauxMajoritaire = totaux.basesTva[0]?.taux ?? 20;
-
   const facture = await prisma.$transaction(async (tx) => {
     const numero = await reserverNumero("FACTURE", parametres.prefixeFacture, tx);
 
     const lignes =
       type === "ACOMPTE"
-        ? [
-            {
-              ordre: 0,
-              designation: `Acompte de ${devis.acomptePct} % sur devis ${devis.numero}`,
-              categorie: "FORFAIT",
-              quantite: 1,
-              unite: "forfait",
-              prixUnitaireCents: Math.round((totaux.totalHtCents * devis.acomptePct) / 100),
-              tauxTva: tauxMajoritaire,
-              remisePct: 0,
-            },
-          ]
+        ? repartirAcompteHt(totaux, devis.acomptePct).map((base, index) => ({
+            ordre: index,
+            designation:
+              `Acompte de ${devis.acomptePct} % sur devis ${devis.numero}` +
+              (totaux.basesTva.length > 1
+                ? ` — prestations à ${base.taux.toString().replace(".", ",")} %`
+                : ""),
+            categorie: "FORFAIT",
+            quantite: 1,
+            unite: "forfait",
+            prixUnitaireCents: base.baseCents,
+            tauxTva: base.taux,
+            remisePct: 0,
+          }))
         : devis.lignes.map((ligne, index) => ({
             ordre: index,
             designation: ligne.designation,
@@ -176,7 +176,15 @@ export async function enregistrerPaiement(
     return { erreur: parsed.error.issues[0]?.message ?? "Paiement invalide" };
   }
 
-  await prisma.paiement.create({ data: parsed.data });
+  // Encaisser un règlement vaut émission : on ne peut pas être payé d'une facture
+  // restée à l'état de brouillon, et une facture émise n'est plus modifiable.
+  await prisma.$transaction([
+    prisma.paiement.create({ data: parsed.data }),
+    prisma.facture.updateMany({
+      where: { id: parsed.data.factureId, verrouillee: false },
+      data: { statut: "ENVOYEE", verrouillee: true },
+    }),
+  ]);
 
   revalidatePath(`/factures/${parsed.data.factureId}`);
   revalidatePath("/factures");

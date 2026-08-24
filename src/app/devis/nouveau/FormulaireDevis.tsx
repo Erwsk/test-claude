@@ -75,10 +75,7 @@ export function FormulaireDevis({ clients }: { clients: { id: string; nom: strin
     [lignesCalculables, remiseGlobalePct, autoliquidation],
   );
 
-  const acompte = calculerAcompteCents(
-    totaux.totalTtcCents,
-    Number(acomptePct.replace(",", ".")) || 0,
-  );
+  const acompte = calculerAcompteCents(totaux, Number(acomptePct.replace(",", ".")) || 0);
 
   function modifierLigne(cle: string, champ: keyof LigneSaisie, valeur: string | number) {
     setLignes((precedentes) =>

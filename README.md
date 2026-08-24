@@ -30,10 +30,15 @@ ces quatre points et rien d'autre.
 
 ```bash
 npm install
-cp .env.example .env
-npm run db:push     # crée la base SQLite locale
-npm run db:seed     # jeu de démonstration (optionnel)
 npm run dev         # http://localhost:3000
+```
+
+C'est tout : `npm run dev` crée au besoin le fichier `.env` et la base SQLite locale
+avant de démarrer. Pour charger le jeu de démonstration (une entreprise, deux clients,
+un devis accepté et sa facture d'acompte encaissée) :
+
+```bash
+npm run db:seed
 ```
 
 Puis renseignez vos informations d'entreprise dans **Réglages** : elles alimentent
@@ -43,7 +48,8 @@ l'en-tête et le pied de tous les documents.
 
 | Commande | Rôle |
 | --- | --- |
-| `npm run dev` | Serveur de développement |
+| `npm run dev` | Serveur de développement (prépare `.env` et la base au besoin) |
+| `npm run setup` | Prépare `.env` et la base SQLite, sans rien écraser |
 | `npm run build` | Build de production |
 | `npm test` | Tests du cœur de calcul (Vitest) |
 | `npm run typecheck` | Vérification TypeScript |
@@ -63,6 +69,7 @@ src/lib/calculs.ts        Cœur métier : totaux, TVA, arrondis, échéances (co
 src/lib/numerotation.ts   Réservation transactionnelle des numéros de document
 src/lib/validation.ts     Schémas Zod partagés client / serveur
 src/app/actions.ts        Server Actions (création, statuts, paiements)
+scripts/setup.mjs         Amorçage local idempotent (.env + base SQLite)
 src/components/           Composants d'interface et rendu imprimable A4
 prisma/schema.prisma      Modèle de données
 ```

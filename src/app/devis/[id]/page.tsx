@@ -24,7 +24,7 @@ export default async function PageDevisDetail({ params }: { params: Promise<{ id
   if (!devis || !entreprise) notFound();
 
   const totaux = totauxDocument(devis);
-  const acompte = calculerAcompteCents(totaux.totalTtcCents, devis.acomptePct);
+  const acompte = calculerAcompteCents(totaux, devis.acomptePct);
   const expiration = calculerExpiration(devis.dateEmission, devis.validiteJours);
 
   return (

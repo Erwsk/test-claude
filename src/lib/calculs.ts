@@ -125,9 +125,35 @@ export function calculerTotaux(lignes: LigneCalculable[], options: OptionsTotaux
   };
 }
 
-/** Montant de l'acompte demandé à la signature du devis. */
-export function calculerAcompteCents(totalTtcCents: number, acomptePct: number): number {
-  return arrondirCentimes((totalTtcCents * acomptePct) / 100);
+/**
+ * Ventilation HT de l'acompte, par taux de TVA, calquée sur celle du document.
+ *
+ * L'acompte doit conserver la structure de TVA du devis : un chantier mêlant
+ * 10 % de pose et 5,5 % d'équipement produit une facture d'acompte à deux
+ * lignes, et non une ligne unique au taux majoritaire.
+ */
+export function repartirAcompteHt(totaux: Totaux, acomptePct: number): BaseTva[] {
+  return totaux.basesTva.map((base) => {
+    const baseCents = arrondirCentimes((base.baseCents * acomptePct) / 100);
+    return {
+      taux: base.taux,
+      baseCents,
+      montantCents: arrondirCentimes((baseCents * base.taux) / 100),
+    };
+  });
+}
+
+/**
+ * Montant TTC de l'acompte demandé à la signature.
+ *
+ * Calculé à partir de la même ventilation que la facture d'acompte : le montant
+ * annoncé sur le devis est donc, au centime près, celui qui sera facturé.
+ */
+export function calculerAcompteCents(totaux: Totaux, acomptePct: number): number {
+  return repartirAcompteHt(totaux, acomptePct).reduce(
+    (acc, base) => acc + base.baseCents + base.montantCents,
+    0,
+  );
 }
 
 /** Reste dû sur une facture, après imputation des paiements encaissés. */

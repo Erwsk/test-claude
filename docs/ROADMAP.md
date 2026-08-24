@@ -41,5 +41,7 @@
 - Passer de SQLite à PostgreSQL avant toute mise en production multi-utilisateur.
 - Les totaux sont recalculés à chaque affichage de liste : à mettre en cache le jour où
   un artisan dépassera quelques centaines de documents.
+- Pas de test de bout en bout automatisé : le parcours devis → facture → encaissement
+  a été validé au navigateur, mais rien ne le garde en CI. À ajouter (Playwright).
 - Le PDF passe par l'impression navigateur. Suffisant pour la V1, à remplacer par un
   rendu serveur le jour où l'envoi par e-mail arrive.

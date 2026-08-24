@@ -7,6 +7,7 @@ import {
   formaterEuros,
   formaterNumero,
   parseEurosEnCentimes,
+  repartirAcompteHt,
   resteAPayerCents,
   statutReglement,
   totalLigneHtCents,
@@ -115,9 +116,36 @@ describe("calculerTotaux", () => {
   });
 });
 
-describe("calculerAcompteCents", () => {
-  it("calcule un acompte de 30 %", () => {
-    expect(calculerAcompteCents(170000, 30)).toBe(51000);
+describe("acompte", () => {
+  const totaux = calculerTotaux([
+    { quantite: 18.5, prixUnitaireCents: 7200, tauxTva: 10 },
+    { quantite: 1, prixUnitaireCents: 142000, tauxTva: 5.5 },
+  ]);
+
+  it("conserve la ventilation de TVA du devis", () => {
+    expect(repartirAcompteHt(totaux, 30)).toEqual([
+      { taux: 10, baseCents: 39960, montantCents: 3996 },
+      { taux: 5.5, baseCents: 42600, montantCents: 2343 },
+    ]);
+  });
+
+  it("annonce sur le devis exactement ce que la facture d'acompte réclamera", () => {
+    const ventilation = repartirAcompteHt(totaux, 30);
+    const totalFacture = ventilation.reduce((acc, b) => acc + b.baseCents + b.montantCents, 0);
+
+    expect(calculerAcompteCents(totaux, 30)).toBe(totalFacture);
+  });
+
+  it("reste proche de 30 % du total TTC", () => {
+    const acompte = calculerAcompteCents(totaux, 30);
+    const cible = (totaux.totalTtcCents * 30) / 100;
+
+    expect(Math.abs(acompte - cible)).toBeLessThanOrEqual(2);
+  });
+
+  it("rend un acompte nul pour 0 %, et le total pour 100 %", () => {
+    expect(calculerAcompteCents(totaux, 0)).toBe(0);
+    expect(calculerAcompteCents(totaux, 100)).toBe(totaux.totalTtcCents);
   });
 });
 
