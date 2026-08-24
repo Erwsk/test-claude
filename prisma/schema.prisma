@@ -1,0 +1,221 @@
+// Schéma de données ArtiDevis
+// Tous les montants unitaires sont stockés en CENTIMES (entiers) pour éviter
+// toute erreur d'arrondi en virgule flottante sur les calculs de TVA.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// Paramètres de l'entreprise artisanale (une seule ligne en mono-utilisateur)
+model Entreprise {
+  id                String   @id @default(cuid())
+  raisonSociale     String
+  formeJuridique    String? // EI, EURL, SASU...
+  siret             String
+  numeroTva         String? // null si franchise en base
+  franchiseTva      Boolean  @default(false)
+  adresse           String
+  codePostal        String
+  ville             String
+  telephone         String?
+  email             String
+  siteWeb           String?
+  iban              String?
+  bic               String?
+  logoUrl           String?
+  // Mentions obligatoires bâtiment
+  assuranceNom      String?
+  assuranceNumero   String?
+  assuranceCouverture String?
+  rcsVille          String?
+  capitalSocial     Int? // en centimes
+  // Préférences de facturation
+  prefixeDevis      String   @default("DEV")
+  prefixeFacture    String   @default("FA")
+  delaiPaiementJours Int     @default(30)
+  penalitesRetard   String   @default("3 fois le taux d'intérêt légal")
+  indemniteRecouvrement Int  @default(4000) // 40,00 € en centimes
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Client {
+  id          String     @id @default(cuid())
+  type        String     @default("PARTICULIER") // PARTICULIER | PROFESSIONNEL
+  nom         String
+  contact     String?
+  email       String?
+  telephone   String?
+  adresse     String?
+  codePostal  String?
+  ville       String?
+  siret       String?
+  numeroTva   String?
+  notes       String?
+  archive     Boolean    @default(false)
+  chantiers   Chantier[]
+  devis       Devis[]
+  factures    Facture[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([nom])
+}
+
+model Chantier {
+  id          String    @id @default(cuid())
+  nom         String
+  description String?
+  adresse     String?
+  codePostal  String?
+  ville       String?
+  statut      String    @default("PROSPECT") // PROSPECT | EN_COURS | TERMINE | ANNULE
+  dateDebut   DateTime?
+  dateFin     DateTime?
+  clientId    String
+  client      Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  photos      Photo[]
+  devis       Devis[]
+  factures    Facture[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([clientId])
+  @@index([statut])
+}
+
+/// Photo de chantier (avant / pendant / après), stockée sur disque ou S3
+model Photo {
+  id         String   @id @default(cuid())
+  url        String
+  legende    String?
+  phase      String   @default("PENDANT") // AVANT | PENDANT | APRES
+  priseLe    DateTime @default(now())
+  chantierId String
+  chantier   Chantier @relation(fields: [chantierId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@index([chantierId])
+}
+
+model Devis {
+  id              String       @id @default(cuid())
+  numero          String       @unique
+  statut          String       @default("BROUILLON") // BROUILLON | ENVOYE | ACCEPTE | REFUSE | EXPIRE
+  objet           String
+  dateEmission    DateTime     @default(now())
+  validiteJours   Int          @default(30)
+  dureeTravaux    String?
+  conditions      String?
+  notes           String?
+  /// Remise globale en points de pourcentage (ex: 5 = 5 %)
+  remiseGlobalePct Float       @default(0)
+  /// Acompte demandé à la signature, en points de pourcentage
+  acomptePct      Float        @default(30)
+  autoliquidation Boolean      @default(false)
+  dateReponse     DateTime?
+  clientId        String
+  client          Client       @relation(fields: [clientId], references: [id])
+  chantierId      String?
+  chantier        Chantier?    @relation(fields: [chantierId], references: [id])
+  lignes          LigneDevis[]
+  factures        Facture[]
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([clientId])
+  @@index([statut])
+}
+
+model LigneDevis {
+  id                String @id @default(cuid())
+  ordre             Int    @default(0)
+  designation       String
+  description       String?
+  /// MAIN_OEUVRE | FOURNITURE | FORFAIT | DEPLACEMENT | TITRE
+  categorie         String @default("FORFAIT")
+  quantite          Float  @default(1)
+  unite             String @default("u") // u, h, m², ml, m³, forfait, j
+  prixUnitaireCents Int    @default(0)
+  tauxTva           Float  @default(20)
+  remisePct         Float  @default(0)
+  devisId           String
+  devis             Devis  @relation(fields: [devisId], references: [id], onDelete: Cascade)
+
+  @@index([devisId])
+}
+
+model Facture {
+  id              String         @id @default(cuid())
+  numero          String         @unique
+  /// ACOMPTE | SITUATION | SOLDE | SIMPLE
+  type            String         @default("SIMPLE")
+  statut          String         @default("BROUILLON") // BROUILLON | ENVOYEE | PAYEE_PARTIEL | PAYEE | IMPAYEE | ANNULEE
+  objet           String
+  dateEmission    DateTime       @default(now())
+  dateEcheance    DateTime
+  remiseGlobalePct Float         @default(0)
+  autoliquidation Boolean        @default(false)
+  notes           String?
+  /// Verrouillée dès l'envoi : une facture émise ne se modifie plus (avoir obligatoire)
+  verrouillee     Boolean        @default(false)
+  clientId        String
+  client          Client         @relation(fields: [clientId], references: [id])
+  chantierId      String?
+  chantier        Chantier?      @relation(fields: [chantierId], references: [id])
+  devisId         String?
+  devis           Devis?         @relation(fields: [devisId], references: [id])
+  lignes          LigneFacture[]
+  paiements       Paiement[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([clientId])
+  @@index([statut])
+}
+
+model LigneFacture {
+  id                String  @id @default(cuid())
+  ordre             Int     @default(0)
+  designation       String
+  description       String?
+  categorie         String  @default("FORFAIT")
+  quantite          Float   @default(1)
+  unite             String  @default("u")
+  prixUnitaireCents Int     @default(0)
+  tauxTva           Float   @default(20)
+  remisePct         Float   @default(0)
+  factureId         String
+  facture           Facture @relation(fields: [factureId], references: [id], onDelete: Cascade)
+
+  @@index([factureId])
+}
+
+model Paiement {
+  id           String   @id @default(cuid())
+  montantCents Int
+  datePaiement DateTime @default(now())
+  mode         String   @default("VIREMENT") // VIREMENT | CHEQUE | ESPECES | CB | AUTRE
+  reference    String?
+  factureId    String
+  facture      Facture  @relation(fields: [factureId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+
+  @@index([factureId])
+}
+
+/// Compteur de numérotation séquentielle, par type de document et par année.
+/// Garantit une numérotation continue et sans trou (obligation légale).
+model Compteur {
+  id       String @id @default(cuid())
+  type     String // DEVIS | FACTURE
+  annee    Int
+  dernier  Int    @default(0)
+
+  @@unique([type, annee])
+}

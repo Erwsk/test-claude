@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ardoise-50: #f6f7f9;
+  --color-ardoise-100: #eceef2;
+  --color-ardoise-200: #d5d9e2;
+  --color-ardoise-400: #8d96a8;
+  --color-ardoise-600: #4c5567;
+  --color-ardoise-800: #2b3140;
+  --color-ardoise-900: #1b2029;
+  --color-chantier-500: #e8791a;
+  --color-chantier-600: #c9640f;
+  --color-chantier-50: #fdf3e8;
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  background-color: var(--color-ardoise-50);
+  color: var(--color-ardoise-900);
+}
+
+/* Mise en page des documents imprimés : le devis doit sortir propre en A4. */
+@media print {
+  .sans-impression {
+    display: none !important;
+  }
+
+  .zone-impression {
+    margin: 0;
+    padding: 0;
+    box-shadow: none;
+  }
+
+  body {
+    background: white;
+  }
+
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+}
